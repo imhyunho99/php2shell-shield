@@ -1,0 +1,21 @@
+# Example: put the shield in front of an existing PHP container.
+# Only the shield's port is published; PHP is reachable only on the
+# internal network.
+services:
+  php:
+    image: php:8.3-apache
+    volumes:
+      - ./example:/var/www/html:ro
+    networks: [internal]
+
+  shield:
+    build: ..
+    command: ["-listen", ":8080", "-upstream", "http://php:80"]
+    ports: ["8080:8080"]
+    depends_on: [php]
+    networks: [internal, public]
+
+networks:
+  internal:
+    internal: true
+  public: {}
