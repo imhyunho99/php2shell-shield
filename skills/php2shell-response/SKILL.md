@@ -5,17 +5,28 @@ description: Respond to PHP2Shell (CVE-2026-109618, CVE-2026-109619) on a server
 
 # PHP2Shell response
 
-PHP2Shell is a pair of PHP core bugs disclosed 2026-10-21. An unauthenticated
-request can push a worker into out-of-memory and leave stale state that the next
-request on the same worker uses. Impact: remote code execution and worker memory
-leaking out through the `PHPSESSID` response cookie. Every PHP from 5.4 through
-8.5.11 is affected by at least one of them.
+PHP2Shell is a pair of PHP engine bugs disclosed 2026-10-21, each rated CVSS
+v4.0 9.2:
 
-Fixed releases: **8.5.12, 8.4.27, 8.3.36, 8.2.35**. 7.4–8.1 have source
-backports only. 5.4–7.3 get nothing.
+- **CVE-2026-109618** ([GHSA-w8hw-w9fx-j79w](https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w)):
+  out-of-memory while request data is half initialized, so cleanup trusts garbage.
+- **CVE-2026-109619** ([GHSA-6wmf-4rv5-p3rp](https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp)):
+  request state outlives its memory and the next request on the same worker uses it.
 
-Exploitation was seen from 2026-10-17. Treat anything exposed since then as
-possibly compromised, not only possibly vulnerable.
+Confirmed paths: session upload progress (on by default, no `session_start()`
+needed), fatal error backtraces on 8.5 (confirmed mod_php RCE), INI
+diagnostics before request startup, and shutdown diagnostics. PHP rates mod_php
+the highest risk, and RCE was also validated on FPM. Every SAPI that serves web
+requests is affected.
+
+Fixed releases: **8.5.12, 8.4.27, 8.3.36, 8.2.35** (and 8.6.0 RC4). For 7.4,
+8.0 and 8.1 PHP published source-backport branches
+(`PHP-x.y-CVE-2026-109618-109619`), not releases. Nothing for older branches.
+PHP's advisories give no lower version bound. Wiz reports versions back to 5.4
+are affected.
+
+AWS saw exploitation attempts before disclosure. Treat anything exposed since
+mid-October as possibly compromised, not only possibly vulnerable.
 
 ## Order of work
 
@@ -43,7 +54,7 @@ php2shell-check -php php-fpm8.3
 docker exec <container> php -i | php2shell-check -stdin
 ```
 
-Exit 0 means patched or not affected, 1 means mitigated or unknown, 2 means vulnerable.
+Exit 0 means patched. Exit 1 means partially mitigated or unknown. Exit 2 means vulnerable.
 Distro builds (`8.3.6-0ubuntu…`) report UNKNOWN because vendors backport
 without bumping the version. Check the vendor advisory (Ubuntu USN, Debian DSA,
 RHSA) for the exact package version that carries the fix.
@@ -60,42 +71,55 @@ For 8.1 and older: say plainly that the branch is EOL, and recommend moving to
 
 ### 4. If patching must wait
 
-Apply the interim settings from the PHP advisory, in the web SAPI's config, set
-so applications cannot override them (`php_admin_value` in the FPM pool, or the
-main `php.ini`, not `.user.ini`):
+PHP says these "reduce exposure to specific attack paths but do not make an
+installation safe". Set them in `php.ini`, the FPM pool (`php_admin_value`) or
+server config, never `ini_set()` or `.user.ini`, then restart every worker:
 
 ```ini
-memory_limit = -1                  ; CVE-2026-109618
-session.upload_progress.enabled = 0 ; CVE-2026-109619
+memory_limit = -1                   ; check nothing sets a finite limit back
+session.upload_progress.enabled = 0
 fatal_error_backtraces = 0          ; PHP 8.5 only
+post_max_size = 8M                  ; 32M if uploads are needed
 ```
 
-`memory_limit = -1` removes PHP's own cap, so add a container or cgroup memory
-limit at the same time. Restart workers afterwards.
+Also:
+
+- Bound memory with a cgroup/container limit. Never `RLIMIT_AS`/`RLIMIT_DATA`:
+  hitting those triggers the bug.
+- Find and remove invalid or deprecated INI settings applied per request
+  (`.htaccess`, `php_value`, `PHP_VALUE` from the frontend). Run with
+  `log_errors=On`, `error_reporting=E_ALL` in an isolated environment and look
+  for warnings before the script starts. Suppressing them does not help.
+- Look in the app for fatal errors and timeouts an attacker can reach (uploads,
+  imports, error pages, destructors, shutdown functions) and report them.
+- Suggest `pm.max_requests = 1` if the load allows.
 
 Then put `php2shell-shield` in front of the web server (see the repo README).
-It blocks the `PHP_SESSION_UPLOAD_PROGRESS` field, oversized bodies and
-excessive multipart parts, and strips malformed `PHPSESSID` cookies on the way
-out. Tell the user it is a stopgap that narrows the known vectors. It does not
-fix PHP.
+If `php -i` shows a non-default `session.name` or
+`session.upload_progress.name`, pass them with `-session-cookies` /
+`-progress-fields`. If the app takes no uploads, add `-block-multipart`. Tell
+the user what it covers and what it doesn't. It blocks the upload-progress
+trigger, multipart amplification and the cookie leak. It cannot see fatal
+backtraces, INI diagnostics or shutdown paths.
 
-If none of this can happen today, CERT-EU and NSA advise taking the service off
-the public internet until it can.
+If none of this can happen today, recommend taking the service off the public
+internet until it can.
 
 ### 5. Look for compromise
 
-From 2026-10-17 onward:
+From mid-October onward:
 
-- Bursts of HTTP 500 or `Allowed memory size … exhausted` on multipart POSTs
-- `PHPSESSID` response cookies containing `%` or longer than 256 chars
+- Bursts of HTTP 500, `Allowed memory size … exhausted`, fatal errors or timeouts, especially on multipart POSTs
+- Session response cookies containing `%` or longer than 256 chars
 - Unexplained PHP worker restarts or crashes
 - New or modified `.php` files in web roots and upload dirs:
-  `find /var/www -name '*.php' -newermt 2026-10-17`
+  `find /var/www -name '*.php' -newermt 2026-10-14`
 - Outbound connections from PHP workers
 
-If any of these turn up, say so plainly and recommend incident response:
-rotate secrets that were in worker memory (DB passwords, API keys, session
-signing keys), invalidate sessions, rebuild from known-good images.
+Clean logs do not prove safety. If any of these turn up, say so plainly and
+recommend incident response: rotate secrets that were in worker memory (DB
+passwords, API keys, session signing keys), invalidate sessions, and rebuild
+from known-good images.
 
 ## Rules
 

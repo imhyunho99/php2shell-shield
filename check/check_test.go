@@ -50,7 +50,7 @@ func TestEvaluate(t *testing.T) {
 		{"7.4 backport-only", "7.4.33", nil, Unknown},
 		{"7.3 eol", "7.3.33", nil, Vulnerable},
 		{"5.4 eol", "5.4.45", nil, Vulnerable},
-		{"5.3 predates bug", "5.3.29", nil, NotAffected},
+		{"5.3 no official lower bound", "5.3.29", nil, Unknown},
 		{"distro build below fixed", "8.3.6-0ubuntu0.24.04.5", nil, Unknown},
 		{"distro build at fixed", "8.3.36-1+deb12u1", nil, Patched},
 		{"garbage", "", nil, Unknown},
@@ -69,5 +69,47 @@ func TestEvaluate(t *testing.T) {
 				t.Fatal("no notes")
 			}
 		})
+	}
+}
+
+func notesContain(r Result, sub string) bool {
+	for _, n := range r.Notes {
+		if strings.Contains(n, sub) {
+			return true
+		}
+	}
+	return false
+}
+
+func TestPostMaxSizeAdvice(t *testing.T) {
+	r := Evaluate(Info{Version: "8.3.20", INI: map[string]string{"post_max_size": "128M"}})
+	if !notesContain(r, "post_max_size") {
+		t.Fatalf("no post_max_size advice: %v", r.Notes)
+	}
+	r = Evaluate(Info{Version: "8.3.20", INI: map[string]string{"post_max_size": "8M"}})
+	if notesContain(r, "lower post_max_size") {
+		t.Fatalf("unexpected advice for 8M: %v", r.Notes)
+	}
+}
+
+func TestShieldFlagsForCustomNames(t *testing.T) {
+	r := Evaluate(Info{Version: "8.3.20", INI: map[string]string{
+		"session.name":                 "SID",
+		"session.upload_progress.name": "UP",
+	}})
+	if !notesContain(r, "-session-cookies SID") || !notesContain(r, "-progress-fields UP") {
+		t.Fatalf("no shield flag advice: %v", r.Notes)
+	}
+	r = Evaluate(Info{Version: "8.3.20", INI: map[string]string{"session.name": "PHPSESSID"}})
+	if notesContain(r, "-session-cookies") {
+		t.Fatalf("advice for default name: %v", r.Notes)
+	}
+}
+
+func TestParseSize(t *testing.T) {
+	for in, want := range map[string]int64{"8M": 8 << 20, "32m": 32 << 20, "1G": 1 << 30, "512K": 512 << 10, "1000": 1000, "0": 0, "": -1, "x": -1} {
+		if got := parseSize(in); got != want {
+			t.Errorf("parseSize(%q) = %d, want %d", in, got, want)
+		}
 	}
 }

@@ -182,6 +182,76 @@ func TestTooManyPartsRejected(t *testing.T) {
 	}
 }
 
+// GHSA-w8hw: many small part headers expand into far more memory inside PHP
+// while the body stays small.
+func TestPartHeaderAmplificationRejected(t *testing.T) {
+	s, events := newShield(t, Config{})
+	var b strings.Builder
+	b.WriteString("--b\r\nContent-Disposition: form-data; name=a\r\n")
+	for i := 0; i < 50; i++ {
+		fmt.Fprintf(&b, "X-H%d: v\r\n", i)
+	}
+	b.WriteString("\r\nx\r\n--b--\r\n")
+	resp := post(t, s.URL, "multipart/form-data; boundary=b", []byte(b.String()), nil)
+	if resp.StatusCode != http.StatusRequestHeaderFieldsTooLarge {
+		t.Fatalf("status = %d, want 431", resp.StatusCode)
+	}
+	if len(*events) != 1 || (*events)[0].Rule != RulePartHeaders {
+		t.Fatalf("events = %+v", *events)
+	}
+}
+
+func TestRepeatedPartHeaderCounted(t *testing.T) {
+	s, _ := newShield(t, Config{MaxPartHeaders: 4})
+	body := "--b\r\nContent-Disposition: form-data; name=a\r\n" +
+		strings.Repeat("X: v\r\n", 5) + "\r\nx\r\n--b--\r\n"
+	if resp := post(t, s.URL, "multipart/form-data; boundary=b", []byte(body), nil); resp.StatusCode != http.StatusRequestHeaderFieldsTooLarge {
+		t.Fatalf("status = %d, want 431", resp.StatusCode)
+	}
+}
+
+func TestLargePartHeaderRejected(t *testing.T) {
+	s, _ := newShield(t, Config{})
+	body := "--b\r\nContent-Disposition: form-data; name=a; filename=\"" +
+		strings.Repeat("a", 10000) + "\"\r\n\r\nx\r\n--b--\r\n"
+	if resp := post(t, s.URL, "multipart/form-data; boundary=b", []byte(body), nil); resp.StatusCode != http.StatusRequestHeaderFieldsTooLarge {
+		t.Fatalf("status = %d, want 431", resp.StatusCode)
+	}
+}
+
+func TestDeepFieldNestingRejected(t *testing.T) {
+	s, events := newShield(t, Config{})
+	ct, body := multipartBody(t, [][2]string{{"a" + strings.Repeat("[x]", 20), "1"}}, 0)
+	if resp := post(t, s.URL, ct, body, nil); resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", resp.StatusCode)
+	}
+	if len(*events) != 1 || (*events)[0].Rule != RuleFieldNesting {
+		t.Fatalf("events = %+v", *events)
+	}
+}
+
+func TestModerateFieldNestingAllowed(t *testing.T) {
+	s, _ := newShield(t, Config{})
+	ct, body := multipartBody(t, [][2]string{{"user[address][city]", "x"}, {"tags[]", "y"}}, 0)
+	if resp := post(t, s.URL, ct, body, nil); resp.StatusCode != 200 {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+}
+
+func TestBlockMultipart(t *testing.T) {
+	s, events := newShield(t, Config{BlockMultipart: true})
+	ct, body := multipartBody(t, [][2]string{{"a", "b"}}, 0)
+	if resp := post(t, s.URL, ct, body, nil); resp.StatusCode != http.StatusUnsupportedMediaType {
+		t.Fatalf("status = %d, want 415", resp.StatusCode)
+	}
+	if len(*events) != 1 || (*events)[0].Rule != RuleMultipartBlocked {
+		t.Fatalf("events = %+v", *events)
+	}
+	if resp := post(t, s.URL, "application/x-www-form-urlencoded", []byte("a=b"), nil); resp.StatusCode != 200 {
+		t.Fatalf("urlencoded status = %d, want 200", resp.StatusCode)
+	}
+}
+
 func TestMalformedMultipartRejected(t *testing.T) {
 	s, events := newShield(t, Config{})
 	body := []byte("--b\r\nContent-Disposition: form-data; name=a\r\n\r\nunterminated")

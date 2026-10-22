@@ -25,6 +25,11 @@ expect "upload-progress blocked" 403 "$(code -F PHP_SESSION_UPLOAD_PROGRESS=x -F
 expect "oversized body blocked"  413 "$(head -c 20000000 /dev/zero | code --data-binary @- "$URL/")"
 args=(); for i in $(seq 1100); do args+=(-F "a$i=1"); done
 expect "too many parts blocked"  413 "$(code "${args[@]}" "$URL/")"
+hdrs="$tmp/hdrs"
+{ printf -- '--b\r\nContent-Disposition: form-data; name=a\r\n'; for i in $(seq 50); do printf 'X-%d: v\r\n' "$i"; done; printf '\r\nx\r\n--b--\r\n'; } > "$hdrs"
+expect "part header amplification blocked" 431 "$(code -H 'Content-Type: multipart/form-data; boundary=b' --data-binary @"$hdrs" "$URL/")"
+expect "deep field nesting blocked" 400 "$(code -F 'a[1][2][3][4][5][6][7][8][9][10]=x' "$URL/")"
+expect "nested form fields pass"    200 "$(code -F 'user[address][city]=x' -F 'tags[]=y' "$URL/")"
 expect "leaking cookie stripped" 0 "$(curl -s -D - -o /dev/null "$URL/leak.php" | grep -ci '^set-cookie: phpsessid' || true)"
 expect "leak was logged"         1 "$(docker compose logs shield 2>/dev/null | grep -c session-cookie-leak || true)"
 

@@ -4,7 +4,7 @@
 //	php2shell-check -php php-fpm8.3      # check the FPM build and its ini
 //	php -i | php2shell-check -stdin      # e.g. from inside a container
 //
-// Exit status: 0 patched or not affected, 1 mitigated or unknown, 2 vulnerable.
+// Exit status: 0 patched, 1 partially mitigated or unknown, 2 vulnerable.
 package main
 
 import (

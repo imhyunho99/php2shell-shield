@@ -25,6 +25,9 @@ const (
 	RuleTooManyParts       = "too-many-parts"
 	RuleMalformedMultipart = "malformed-multipart"
 	RuleSessionCookieLeak  = "session-cookie-leak"
+	RulePartHeaders        = "part-headers"
+	RuleFieldNesting       = "field-nesting"
+	RuleMultipartBlocked   = "multipart-blocked"
 )
 
 type Config struct {
@@ -35,6 +38,15 @@ type Config struct {
 	MaxBodyBytes int64
 	// MaxParts caps multipart parts. Default 1000, PHP's max_input_vars default.
 	MaxParts int
+	// MaxPartHeaders and MaxPartHeaderBytes cap the headers inside each
+	// multipart part. Many small part headers cost PHP far more memory than
+	// they take on the wire. Defaults 8 and 4096.
+	MaxPartHeaders     int
+	MaxPartHeaderBytes int
+	// MaxNesting caps '[' nesting in multipart field names. Default 8.
+	MaxNesting int
+	// BlockMultipart refuses all multipart bodies, for apps without uploads.
+	BlockMultipart bool
 	// ProgressFields are session.upload_progress.name values to block.
 	// Default PHP_SESSION_UPLOAD_PROGRESS.
 	ProgressFields []string
@@ -81,6 +93,15 @@ func New(cfg Config) (http.Handler, error) {
 	}
 	if cfg.MaxParts <= 0 {
 		cfg.MaxParts = 1000
+	}
+	if cfg.MaxPartHeaders <= 0 {
+		cfg.MaxPartHeaders = 8
+	}
+	if cfg.MaxPartHeaderBytes <= 0 {
+		cfg.MaxPartHeaderBytes = 4096
+	}
+	if cfg.MaxNesting <= 0 {
+		cfg.MaxNesting = 8
 	}
 	if len(cfg.ProgressFields) == 0 {
 		cfg.ProgressFields = []string{"PHP_SESSION_UPLOAD_PROGRESS"}
@@ -145,6 +166,10 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // Anything that mentions multipart is checked, and anything we cannot parse
 // is refused: if Go and PHP disagree on framing, we fail closed.
 func (h *handler) inspectMultipart(ct string, body []byte) (int, string, string) {
+	if h.cfg.BlockMultipart {
+		return http.StatusUnsupportedMediaType, RuleMultipartBlocked, "multipart disabled"
+	}
+
 	// Byte search first, so a parser differential cannot hide the field.
 	lower := bytes.ToLower(body)
 	for _, f := range h.cfg.ProgressFields {
@@ -171,6 +196,21 @@ func (h *handler) inspectMultipart(ct string, body []byte) (int, string, string)
 		if parts > h.cfg.MaxParts {
 			return http.StatusRequestEntityTooLarge, RuleTooManyParts,
 				fmt.Sprintf("more than %d parts", h.cfg.MaxParts)
+		}
+		n, size := 0, 0
+		for k, vs := range p.Header {
+			for _, v := range vs {
+				n++
+				size += len(k) + len(v)
+			}
+		}
+		if n > h.cfg.MaxPartHeaders || size > h.cfg.MaxPartHeaderBytes {
+			return http.StatusRequestHeaderFieldsTooLarge, RulePartHeaders,
+				fmt.Sprintf("part %d has %d headers, %d bytes", parts, n, size)
+		}
+		if depth := strings.Count(p.FormName(), "["); depth > h.cfg.MaxNesting {
+			return http.StatusBadRequest, RuleFieldNesting,
+				fmt.Sprintf("field nested %d deep", depth)
 		}
 		if _, err := io.Copy(io.Discard, p); err != nil {
 			return http.StatusBadRequest, RuleMalformedMultipart, err.Error()

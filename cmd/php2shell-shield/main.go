@@ -26,6 +26,10 @@ func main() {
 	upstream := flag.String("upstream", "", "PHP web server to protect, e.g. http://127.0.0.1:8081 (required)")
 	maxBody := flag.Int64("max-body", 16<<20, "maximum request body in bytes")
 	maxParts := flag.Int("max-parts", 1000, "maximum multipart parts per request")
+	maxPartHeaders := flag.Int("max-part-headers", 8, "maximum headers inside one multipart part")
+	maxPartHeaderBytes := flag.Int("max-part-header-bytes", 4096, "maximum header bytes inside one multipart part")
+	maxNesting := flag.Int("max-nesting", 8, "maximum [ ] nesting in multipart field names")
+	blockMultipart := flag.Bool("block-multipart", false, "refuse every multipart request (for apps without uploads)")
 	progress := flag.String("progress-fields", "PHP_SESSION_UPLOAD_PROGRESS", "comma-separated session.upload_progress.name values to block")
 	cookies := flag.String("session-cookies", "PHPSESSID", "comma-separated session.name values to watch in responses")
 	logOnly := flag.Bool("log-only", false, "report matches without blocking")
@@ -41,12 +45,16 @@ func main() {
 	var mu sync.Mutex // OnEvent runs on many request goroutines
 	enc := json.NewEncoder(os.Stdout)
 	h, err := shield.New(shield.Config{
-		Upstream:       *upstream,
-		MaxBodyBytes:   *maxBody,
-		MaxParts:       *maxParts,
-		ProgressFields: split(*progress),
-		SessionCookies: split(*cookies),
-		LogOnly:        *logOnly,
+		Upstream:           *upstream,
+		MaxBodyBytes:       *maxBody,
+		MaxParts:           *maxParts,
+		MaxPartHeaders:     *maxPartHeaders,
+		MaxPartHeaderBytes: *maxPartHeaderBytes,
+		MaxNesting:         *maxNesting,
+		BlockMultipart:     *blockMultipart,
+		ProgressFields:     split(*progress),
+		SessionCookies:     split(*cookies),
+		LogOnly:            *logOnly,
 		OnEvent: func(e shield.Event) {
 			mu.Lock()
 			defer mu.Unlock()
