@@ -48,12 +48,12 @@ type Config struct {
 }
 
 type Event struct {
-	Rule    string
-	Remote  string
-	Method  string
-	Path    string
-	Detail  string
-	LogOnly bool
+	Rule    string `json:"rule"`
+	Remote  string `json:"remote"`
+	Method  string `json:"method"`
+	Path    string `json:"path"`
+	Detail  string `json:"detail"`
+	LogOnly bool   `json:"log_only"`
 }
 
 // PHP generates session IDs from [0-9a-zA-Z,-] and caps them at 256 chars.

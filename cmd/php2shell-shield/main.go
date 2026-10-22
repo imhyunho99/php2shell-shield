@@ -2,16 +2,24 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/imhyunho99/php2shell-shield/shield"
 )
+
+var version = "dev" // set by -ldflags at release
 
 func main() {
 	listen := flag.String("listen", ":8080", "address to listen on")
@@ -23,8 +31,14 @@ func main() {
 	logOnly := flag.Bool("log-only", false, "report matches without blocking")
 	certFile := flag.String("tls-cert", "", "TLS certificate file")
 	keyFile := flag.String("tls-key", "", "TLS key file")
+	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
+	if *showVersion {
+		fmt.Println(version)
+		return
+	}
 
+	var mu sync.Mutex // OnEvent runs on many request goroutines
 	enc := json.NewEncoder(os.Stdout)
 	h, err := shield.New(shield.Config{
 		Upstream:       *upstream,
@@ -34,6 +48,8 @@ func main() {
 		SessionCookies: split(*cookies),
 		LogOnly:        *logOnly,
 		OnEvent: func(e shield.Event) {
+			mu.Lock()
+			defer mu.Unlock()
 			enc.Encode(struct {
 				Time string `json:"time"`
 				shield.Event
@@ -50,11 +66,24 @@ func main() {
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       60 * time.Second,
 	}
-	log.Printf("php2shell-shield %s -> %s (log-only=%v)", *listen, *upstream, *logOnly)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		srv.Shutdown(shutdownCtx)
+	}()
+
+	log.Printf("php2shell-shield %s %s -> %s (log-only=%v)", version, *listen, *upstream, *logOnly)
 	if *certFile != "" {
-		log.Fatal(srv.ListenAndServeTLS(*certFile, *keyFile))
+		err = srv.ListenAndServeTLS(*certFile, *keyFile)
+	} else {
+		err = srv.ListenAndServe()
 	}
-	log.Fatal(srv.ListenAndServe())
+	if !errors.Is(err, http.ErrServerClosed) {
+		log.Fatal(err)
+	}
 }
 
 func split(s string) []string {

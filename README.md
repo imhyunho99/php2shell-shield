@@ -28,10 +28,15 @@ Every match is logged to stdout as one JSON line. Use `-log-only` to watch traff
 
 What it does **not** do: patch PHP, see FastCGI traffic, protect against vectors that haven't been published, or help if attackers can reach PHP without going through it.
 
+## Install
+
+- Binaries for Linux, macOS and Windows: [Releases](https://github.com/imhyunho99/php2shell-shield/releases) (with `SHA256SUMS`)
+- Container: `ghcr.io/imhyunho99/php2shell-shield:latest` (amd64, arm64)
+- From source: `go install github.com/imhyunho99/php2shell-shield/cmd/...@latest`
+
 ## Quick start
 
 ```sh
-go install github.com/imhyunho99/php2shell-shield/cmd/...@latest
 
 # 1. Is this PHP exposed? Check the web SAPI, not only the CLI.
 php2shell-check -php php-fpm8.3
@@ -41,14 +46,13 @@ docker exec web php -i | php2shell-check -stdin
 php2shell-shield -listen :80 -upstream http://127.0.0.1:8080
 ```
 
-Or with Docker, see [`deploy/docker-compose.yml`](deploy/docker-compose.yml):
+Deployment examples:
 
-```sh
-docker build -t php2shell-shield .
-docker run -p 80:8080 php2shell-shield -listen :8080 -upstream http://php:80
-```
+- [`deploy/docker-compose.yml`](deploy/docker-compose.yml): shield in front of a PHP container, with PHP kept on an internal network
+- [`deploy/nginx/php2shell.conf`](deploy/nginx/php2shell.conf): nginx terminates TLS, then the shield, then the PHP-FPM vhost on localhost
+- [`deploy/systemd/php2shell-shield.service`](deploy/systemd/php2shell-shield.service): sandboxed systemd unit
 
-Behind a TLS-terminating load balancer or nginx, run the shield between it and the PHP server. To terminate TLS in the shield itself, pass `-tls-cert` and `-tls-key`.
+To terminate TLS in the shield itself, pass `-tls-cert` and `-tls-key`. Whatever the layout, make sure nothing else exposes PHP. The shield only helps if every request goes through it.
 
 ### Flags
 
@@ -112,6 +116,15 @@ If you find any, assume secrets in worker memory are exposed. Rotate DB password
 - [Tenable FAQ](https://www.tenable.com/blog/php2shell-cve-2026-109618-cve-2026-109619-frequently-asked-questions-about-critical-php-remote)
 - [Qualys](https://blog.qualys.com/vulnerabilities-threat-research/2026/10/20/php-announces-critical-security-release-for-two-vulnerabilities)
 - [Google Cloud response](https://cloud.google.com/blog/products/identity-security/responding-to-core-php-vulnerabilities-cve-2026-109618-cve-2026-109619)
+
+## Development
+
+```sh
+go test -race ./...   # unit tests
+test/e2e/run.sh       # real php:8.3-apache behind the shield (needs Docker)
+```
+
+Bypasses: see [SECURITY.md](SECURITY.md).
 
 ## License
 

@@ -1,0 +1,10 @@
+services:
+  php:
+    image: ${PHP_IMAGE:-php:8.3-apache}
+    volumes:
+      - ./www:/var/www/html:ro
+  shield:
+    build: ../..
+    command: ["-listen", ":8080", "-upstream", "http://php:80"]
+    ports: ["127.0.0.1:${E2E_PORT:-18480}:8080"]
+    depends_on: [php]

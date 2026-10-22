@@ -17,10 +17,17 @@ import (
 	"github.com/imhyunho99/php2shell-shield/check"
 )
 
+var version = "dev" // set by -ldflags at release
+
 func main() {
 	bin := flag.String("php", "php", "PHP binary to run with -i (php, php-fpm, php-cgi, ...)")
 	stdin := flag.Bool("stdin", false, "read phpinfo text from stdin instead of running a binary")
+	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
+	if *showVersion {
+		fmt.Println(version)
+		return
+	}
 
 	var out []byte
 	var err error
