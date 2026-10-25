@@ -2,7 +2,16 @@
 
 [English](README.md) · [블로그 해설](https://im-hyunho99.tistory.com/51)
 
-**PHP2Shell**(CVE-2026-109618, CVE-2026-109619)에 대응하는 임시 방어 도구입니다. 당장 PHP를 올리지 못하는 서버를 위해 만들었습니다.
+PHP2Shell(CVE-2026-109618, CVE-2026-109619) 사태를 빠져나가는 두 가지 길을 담았습니다.
+
+- **PHP를 떠나기: [`php-bridge`](bridge/) (v2, Node).** PHP-FPM 앞의 nginx/Apache 자리를 Node가 대신합니다. 라우트를 하나씩 Node로 옮기고, 아직 안 옮긴 것은 그대로 PHP가 처리합니다. Node에서 PHP 로그인 세션을 읽을 수 있고, 아직 PHP에서 처리되는 경로는 통계로 볼 수 있습니다. WordPress를 이것만으로 띄워서 테스트했습니다.
+
+  ```sh
+  npm install https://github.com/imhyunho99/php2shell-shield/releases/download/v2.0.0/php-bridge-2.0.0.tgz
+  npx php-bridge --root /var/www/html --fpm 127.0.0.1:9000 --front-controller index.php --routes ./routes.mjs
+  ```
+
+- **버티기: 아래 임시 방어 도구들 (Go).** 당장 PHP를 올리지 못하는 서버를 위한 것입니다.
 
 - **`php2shell-shield`**: PHP 웹서버 앞에 두는 Go 리버스 프록시입니다. 공개된 공격 경로에 필요한 요청 형태를 막고, 응답 쿠키로 새어 나가는 메모리를 걸러냅니다.
 - **`php2shell-check`**: `php -i` 출력으로 패치됨, 부분 완화, 취약 중 어디에 해당하는지 판정합니다.

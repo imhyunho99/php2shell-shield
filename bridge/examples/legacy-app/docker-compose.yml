@@ -1,0 +1,9 @@
+# PHP-FPM only; php-bridge (Node) runs in front of it and replaces nginx/Apache.
+services:
+  fpm:
+    image: ${PHP_IMAGE:-php:8.3-fpm}
+    volumes:
+      - ./www:/var/www/html:ro
+      - ./php.ini:/usr/local/etc/php/conf.d/zz-bridge.ini:ro
+      - ${SESSIONS_DIR:-./sessions}:/sessions
+    ports: ["127.0.0.1:${FPM_PORT:-19000}:9000"]

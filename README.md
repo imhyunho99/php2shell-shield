@@ -2,7 +2,16 @@
 
 [한국어](README.ko.md) · [Write-up (Korean)](https://im-hyunho99.tistory.com/51)
 
-Stopgap protection for **PHP2Shell** (CVE-2026-109618, CVE-2026-109619) for servers that can't upgrade PHP today.
+Two ways out of the PHP2Shell (CVE-2026-109618, CVE-2026-109619) mess:
+
+- **Leave PHP: [`php-bridge`](bridge/) (v2, Node).** It replaces nginx/Apache in front of PHP-FPM. You move the app to Node one route at a time, and everything not yet moved keeps running on PHP. PHP login sessions are readable from Node, and stats show what is still on PHP. Tested with WordPress as the only web server.
+
+  ```sh
+  npm install https://github.com/imhyunho99/php2shell-shield/releases/download/v2.0.0/php-bridge-2.0.0.tgz
+  npx php-bridge --root /var/www/html --fpm 127.0.0.1:9000 --front-controller index.php --routes ./routes.mjs
+  ```
+
+- **Hold the line: the stopgap tools below (Go).** For servers that can't upgrade PHP today:
 
 - **`php2shell-shield`**: a small Go reverse proxy you put in front of your PHP web server. It blocks the request shapes the published attack paths need and strips leaked memory from responses.
 - **`php2shell-check`**: tells you whether a PHP build is patched, partially mitigated, or vulnerable, based on `php -i` output.

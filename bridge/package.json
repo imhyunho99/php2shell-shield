@@ -1,0 +1,27 @@
+{
+  "name": "php-bridge",
+  "version": "2.0.0",
+  "description": "Move a PHP app to Node one route at a time: Node serves migrated routes, PHP-FPM serves the rest, sessions carry over.",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "bin": {
+    "php-bridge": "bin/php-bridge.js"
+  },
+  "files": ["src", "bin", "README.md"],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test 'test/*.test.js'"
+  },
+  "keywords": ["php", "php-fpm", "fastcgi", "migration", "strangler-fig", "php-session", "php2shell"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/imhyunho99/php2shell-shield.git",
+    "directory": "bridge"
+  }
+}
