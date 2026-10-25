@@ -53,6 +53,10 @@ type Config struct {
 	// SessionCookies are session.name values to watch in responses.
 	// Default PHPSESSID.
 	SessionCookies []string
+	// UpstreamConns is how many idle connections to keep open to the
+	// upstream. Go's default of 2 makes a busy proxy open a connection per
+	// request and run out of ports. Default 256.
+	UpstreamConns int
 	// LogOnly reports matches without blocking or stripping anything.
 	LogOnly bool
 	// OnEvent receives every match. May be nil.
@@ -103,6 +107,9 @@ func New(cfg Config) (http.Handler, error) {
 	if cfg.MaxNesting <= 0 {
 		cfg.MaxNesting = 8
 	}
+	if cfg.UpstreamConns <= 0 {
+		cfg.UpstreamConns = 256
+	}
 	if len(cfg.ProgressFields) == 0 {
 		cfg.ProgressFields = []string{"PHP_SESSION_UPLOAD_PROGRESS"}
 	}
@@ -110,8 +117,13 @@ func New(cfg Config) (http.Handler, error) {
 		cfg.SessionCookies = []string{"PHPSESSID"}
 	}
 
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConns = cfg.UpstreamConns
+	transport.MaxIdleConnsPerHost = cfg.UpstreamConns
+
 	h := &handler{cfg: cfg}
 	h.proxy = &httputil.ReverseProxy{
+		Transport: transport,
 		Rewrite: func(r *httputil.ProxyRequest) {
 			r.SetURL(up)
 			r.Out.Host = r.In.Host // PHP apps build URLs from Host

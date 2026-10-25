@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -334,6 +336,54 @@ func TestDeletionCookieKept(t *testing.T) {
 	})
 	if len(resp.Header.Values("Set-Cookie")) != 2 || len(*events) != 0 {
 		t.Fatalf("cookies = %v events = %+v", resp.Header.Values("Set-Cookie"), *events)
+	}
+}
+
+// Under concurrency the proxy must reuse upstream connections; opening one per
+// request exhausts ephemeral ports and turns into 502s.
+func TestUpstreamConnectionsReused(t *testing.T) {
+	var mu sync.Mutex
+	conns := 0
+	up := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.Copy(io.Discard, r.Body)
+		w.Write([]byte("ok"))
+	}))
+	up.Config.ConnState = func(_ net.Conn, s http.ConnState) {
+		if s == http.StateNew {
+			mu.Lock()
+			conns++
+			mu.Unlock()
+		}
+	}
+	up.Start()
+	defer up.Close()
+	h, err := New(Config{Upstream: up.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := httptest.NewServer(h)
+	defer s.Close()
+
+	const workers, perWorker = 32, 20
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < perWorker; j++ {
+				resp, err := http.Get(s.URL)
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				io.Copy(io.Discard, resp.Body)
+				resp.Body.Close()
+			}
+		}()
+	}
+	wg.Wait()
+	if conns > workers*2 {
+		t.Fatalf("%d upstream connections for %d requests from %d workers; not reusing", conns, workers*perWorker, workers)
 	}
 }
 

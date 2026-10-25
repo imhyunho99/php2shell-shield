@@ -54,7 +54,22 @@ docker exec web php -i | php2shell-check -stdin
 php2shell-shield -listen :80 -upstream http://127.0.0.1:8080
 ```
 
+설치는 한 줄이면 됩니다(Linux·macOS, SHA-256 검증 포함).
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/imhyunho99/php2shell-shield/main/install.sh | sh
+```
+
 바이너리는 [Releases](https://github.com/imhyunho99/php2shell-shield/releases)에 있고, 컨테이너 이미지는 `ghcr.io/imhyunho99/php2shell-shield:latest`입니다. 배포 예시(docker-compose, nginx, systemd)는 `deploy/`에 있습니다.
+
+## 테스트
+
+- 규칙별 단위 테스트, 업스트림 연결 재사용 동시성 테스트
+- CI e2e: 실제 `php:8.3-apache` 앞에서 정상 세션·업로드는 통과하고 공격 형태는 차단되는지 확인
+- **WordPress(php8.3-apache)를 쉴드 뒤에 두고 실제 브라우저로 사용**: 로그인, 미디어 업로드(일반·비동기), REST 글 발행, 설정 저장, 방문자 댓글. 오탐 0건, 오류 0건
+- 처리량(wrk, 동시 32): 1 MiB 업로드 기준 직접 159 req/s, 쉴드 경유 151 req/s. 요청당 수 ms가 추가되고 메모리는 75 MiB 이하였습니다.
+
+실제 PHP2Shell 익스플로잇으로는 테스트하지 않았습니다. 공개된 익스플로잇이 없어서, 차단 규칙은 공식 공지에 적힌 요청 형태를 근거로 만들었습니다.
 
 ## 당장 적용할 PHP 설정
 

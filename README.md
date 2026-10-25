@@ -47,6 +47,12 @@ Every match is logged to stdout as one JSON line. Use `-log-only` to look for fa
 
 ## Install
 
+```sh
+curl -fsSL https://raw.githubusercontent.com/imhyunho99/php2shell-shield/main/install.sh | sh
+```
+
+Linux and macOS, amd64 and arm64. It downloads the latest release and checks its SHA-256 before installing to `/usr/local/bin` (`PREFIX=` to change). Or:
+
 - Binaries for Linux, macOS and Windows: [Releases](https://github.com/imhyunho99/php2shell-shield/releases) (with `SHA256SUMS`)
 - Container: `ghcr.io/imhyunho99/php2shell-shield:latest` (amd64, arm64)
 - From source: `go install github.com/imhyunho99/php2shell-shield/cmd/...@latest`
@@ -86,9 +92,26 @@ To terminate TLS in the shield itself, pass `-tls-cert` and `-tls-key`. Whatever
 | `-block-multipart` | `false` | refuse all multipart; use if the app takes no uploads |
 | `-progress-fields` | `PHP_SESSION_UPLOAD_PROGRESS` | your `session.upload_progress.name`, comma-separated |
 | `-session-cookies` | `PHPSESSID` | your `session.name`, comma-separated |
+| `-upstream-conns` | `256` | idle keep-alive connections to the upstream |
 | `-log-only` | `false` | log matches, block nothing |
 
 The shield buffers each request body (up to `-max-body`) in memory. Size the host for that.
+
+## Tested
+
+- **Unit tests** for every rule, plus a concurrency test for upstream connection reuse.
+- **e2e in CI**: real `php:8.3-apache` behind the shield. Sessions and uploads pass, and each attack shape is refused.
+- **WordPress 6 (`wordpress:php8.3-apache`) behind the shield**, driven by a real browser (Playwright): login, classic and async media upload, REST post publishing, settings form, visitor comment. 0 requests blocked, 0 errors.
+- **Throughput** (wrk, 32 connections, Docker Desktop on an M-series Mac, same PHP container):
+
+  | | direct | through shield |
+  |---|---|---|
+  | `GET` tiny PHP page | 23.3k req/s | 11.5k req/s |
+  | 1 MiB multipart upload | 159 req/s | 151 req/s |
+
+  The shield adds a few ms per request. For real pages, PHP is the bottleneck. Memory stayed under 75 MiB.
+
+Not tested: real PHP2Shell exploits. No public exploit exists, and the rules come from the request shapes the advisories describe.
 
 ## Interim PHP settings
 

@@ -32,6 +32,7 @@ func main() {
 	blockMultipart := flag.Bool("block-multipart", false, "refuse every multipart request (for apps without uploads)")
 	progress := flag.String("progress-fields", "PHP_SESSION_UPLOAD_PROGRESS", "comma-separated session.upload_progress.name values to block")
 	cookies := flag.String("session-cookies", "PHPSESSID", "comma-separated session.name values to watch in responses")
+	upstreamConns := flag.Int("upstream-conns", 256, "idle connections kept open to the upstream")
 	logOnly := flag.Bool("log-only", false, "report matches without blocking")
 	certFile := flag.String("tls-cert", "", "TLS certificate file")
 	keyFile := flag.String("tls-key", "", "TLS key file")
@@ -54,6 +55,7 @@ func main() {
 		BlockMultipart:     *blockMultipart,
 		ProgressFields:     split(*progress),
 		SessionCookies:     split(*cookies),
+		UpstreamConns:      *upstreamConns,
 		LogOnly:            *logOnly,
 		OnEvent: func(e shield.Event) {
 			mu.Lock()
