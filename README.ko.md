@@ -1,6 +1,6 @@
 # php2shell-shield
 
-[English](README.md)
+[English](README.md) · [블로그 해설](https://im-hyunho99.tistory.com/51)
 
 **PHP2Shell**(CVE-2026-109618, CVE-2026-109619)에 대응하는 임시 방어 도구입니다. 당장 PHP를 올리지 못하는 서버를 위해 만들었습니다.
 

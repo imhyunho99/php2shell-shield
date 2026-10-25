@@ -1,6 +1,6 @@
 # php2shell-shield
 
-[한국어](README.ko.md)
+[한국어](README.ko.md) · [Write-up (Korean)](https://im-hyunho99.tistory.com/51)
 
 Stopgap protection for **PHP2Shell** (CVE-2026-109618, CVE-2026-109619) for servers that can't upgrade PHP today.
 
