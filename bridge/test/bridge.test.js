@@ -194,3 +194,12 @@ test('a body already consumed by another parser fails loudly instead of hanging'
   assert.ok(events.some((e) => /before any body parser/.test(e.detail ?? '')));
   await new Promise((r) => s.close(r));
 });
+
+test('unreadable session file fails with a hint instead of a bare EACCES', { skip: process.getuid?.() === 0 }, async () => {
+  const f = path.join(sessDir, 'sess_locked1');
+  fs.writeFileSync(f, 'a|i:1;');
+  fs.chmodSync(f, 0o000);
+  const res = await fetch(`${base}/api/users/1`, { headers: { cookie: 'PHPSESSID=locked1' } });
+  assert.equal(res.status, 500);
+  assert.ok(events.some((e) => /Run php-bridge as the PHP-FPM user/.test(e.detail ?? '')));
+});

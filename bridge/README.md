@@ -123,6 +123,7 @@ What load testing caught: a keep-alive pool to FPM looked like an optimization. 
 
 - Responses from PHP are buffered, not streamed. Fine for pages and APIs, not for huge downloads or long-polling (serve those as static files or move them to Node).
 - Sessions are read-only from Node and only the `files` save handler is supported (not Redis or Memcached yet).
+- PHP writes session files `0600`. Run php-bridge as the PHP-FPM user, or set `session.save_path = "0;0640;/var/lib/php/sessions"` and add php-bridge's user to FPM's group. Otherwise `req.phpSession()` fails with an error saying so.
 - No WebSocket proxying to PHP.
 
 ## License

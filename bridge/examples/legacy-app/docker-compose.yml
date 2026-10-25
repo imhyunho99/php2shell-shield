@@ -2,6 +2,8 @@
 services:
   fpm:
     image: ${PHP_IMAGE:-php:8.3-fpm}
+    # Same uid as php-bridge, so Node can read the 0600 session files PHP writes.
+    user: "${UID:-1000}:${GID:-1000}"
     volumes:
       - ./www:/var/www/html:ro
       - ./php.ini:/usr/local/etc/php/conf.d/zz-bridge.ini:ro

@@ -23,6 +23,12 @@ export class SessionReader {
       raw = await fs.readFile(path.join(this.savePath, `sess_${id}`));
     } catch (err) {
       if (err.code === 'ENOENT') return null;
+      if (err.code === 'EACCES') {
+        throw new Error(
+          `php-bridge: cannot read PHP session files in ${this.savePath} (PHP writes them 0600). ` +
+            'Run php-bridge as the PHP-FPM user, or set session.save_path = "0;0640;<dir>" and put php-bridge in that group',
+        );
+      }
       throw err;
     }
     return decodeSession(raw, this.serializeHandler);

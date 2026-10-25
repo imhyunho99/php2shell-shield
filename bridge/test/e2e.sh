@@ -2,9 +2,10 @@
 # End-to-end: real PHP-FPM behind php-bridge, with one route moved to Node.
 set -euo pipefail
 cd "$(dirname "$0")/../examples/legacy-app"
-export FPM_PORT=${FPM_PORT:-19000} SESSIONS_DIR
+export FPM_PORT=${FPM_PORT:-19000} SESSIONS_DIR UID GID
+GID=$(id -g)
 BRIDGE_PORT=${BRIDGE_PORT:-19080}
-tmp=$(mktemp -d); SESSIONS_DIR="$tmp/sessions"; mkdir -m 777 "$SESSIONS_DIR"
+tmp=$(mktemp -d); SESSIONS_DIR="$tmp/sessions"; mkdir "$SESSIONS_DIR"
 cleanup() { kill "${pid:-0}" 2>/dev/null || true; docker compose down -v >/dev/null 2>&1; rm -rf "$tmp"; }
 trap cleanup EXIT
 
