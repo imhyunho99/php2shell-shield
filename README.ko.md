@@ -7,7 +7,7 @@ PHP2Shell(CVE-2026-109618, CVE-2026-109619) 사태를 빠져나가는 두 가지
 - **PHP를 떠나기: [`php-bridge`](bridge/) (v2, Node).** PHP-FPM 앞의 nginx/Apache 자리를 Node가 대신합니다. 라우트를 하나씩 Node로 옮기고, 아직 안 옮긴 것은 그대로 PHP가 처리합니다. Node에서 PHP 로그인 세션을 읽을 수 있고, 아직 PHP에서 처리되는 경로는 통계로 볼 수 있습니다. WordPress를 이것만으로 띄워서 테스트했습니다.
 
   ```sh
-  npm install https://github.com/imhyunho99/php2shell-shield/releases/download/v2.0.0/php-bridge-2.0.0.tgz
+  npm install https://github.com/imhyunho99/php2shell-shield/releases/download/v2.0.1/php-bridge-2.0.1.tgz
   npx php-bridge --root /var/www/html --fpm 127.0.0.1:9000 --front-controller index.php --routes ./routes.mjs
   ```
 

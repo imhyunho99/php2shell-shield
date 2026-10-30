@@ -15,7 +15,7 @@ This is the [strangler fig](https://martinfowler.com/bliki/StranglerFigApplicati
 ## Quick start
 
 ```sh
-npm install https://github.com/imhyunho99/php2shell-shield/releases/download/v2.0.0/php-bridge-2.0.0.tgz
+npm install https://github.com/imhyunho99/php2shell-shield/releases/download/v2.0.1/php-bridge-2.0.1.tgz
 ```
 
 Write the first route you're moving:
@@ -128,4 +128,4 @@ What load testing caught: a keep-alive pool to FPM looked like an optimization. 
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).

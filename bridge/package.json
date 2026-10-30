@@ -1,6 +1,6 @@
 {
   "name": "php-bridge",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Move a PHP app to Node one route at a time: Node serves migrated routes, PHP-FPM serves the rest, sessions carry over.",
   "type": "module",
   "main": "src/index.js",
@@ -10,7 +10,7 @@
   "bin": {
     "php-bridge": "bin/php-bridge.js"
   },
-  "files": ["src", "bin", "README.md"],
+  "files": ["src", "bin", "README.md", "LICENSE"],
   "engines": {
     "node": ">=20"
   },
